@@ -43,11 +43,11 @@ def train(data_path):
     agent = Agent()
 
     # visdom
-    viz = visdom.Visdom()
+    #viz = visdom.Visdom()
     plt_win = None
     eval_plt_win = None
-    viz_avg_correct_state_acc, viz_avg_qa_acc = [], []
-    viz_eval_sufficient_info_reward, viz_eval_qa_reward = [], []
+    #viz_avg_correct_state_acc, #viz_avg_qa_acc = [], []
+    #viz_eval_sufficient_info_reward, #viz_eval_qa_reward = [], []
 
     step_in_total = 0
     running_avg_qa_reward = generic.HistoryScoreCache(capacity=500)
@@ -122,16 +122,17 @@ def train(data_path):
 
         if len(env_ids) != agent.batch_size:  # either less than or greater than
             env_ids = np.random.choice(env_ids, agent.batch_size).tolist()
+        print("ENV IDS:", env_ids)
         env_id = make_batch2(env_ids, parallel=True)
         env = gym.make(env_id)
         env.seed(episode_no)
-
         obs, infos = env.reset()
+        print("obs: ",obs)
         batch_size = len(obs)
         # generate question-answer pairs here
         questions, answers, reward_helper_info = game_generator.generate_qa_pairs(infos, question_type=agent.question_type, seed=episode_no)
         print("====================================================================================", episode_no)
-        print(questions[0], answers[0])
+        print(questions, answers)
 
         agent.train()
         agent.init(obs, infos)
@@ -146,9 +147,10 @@ def train(data_path):
             commands_per_step.append(["restart"])
 
         observation_strings, possible_words = agent.get_game_info_at_certain_step(obs, infos)
+        
         observation_strings = [a + " <|> " + item for a, item in zip(commands, observation_strings)]
+        print(observation_strings)
         input_quest, input_quest_char, _ = agent.get_agent_inputs(questions)
-
         transition_cache = []
         print_cmds = []
         counting_rewards_np = []
@@ -157,6 +159,7 @@ def train(data_path):
         act_randomly = False if agent.noisy_net else episode_no < agent.learn_start_from_this_episode
         # push init state into counting reward dict
         state_strings = agent.get_state_strings(infos)
+        print("state strings: ",state_strings)
         _ = agent.get_binarized_count(state_strings, update=True)
         for step_no in range(agent.max_nb_steps_per_episode):
             # update answerer input
@@ -173,8 +176,10 @@ def train(data_path):
             # generate commands
             if agent.noisy_net:
                 agent.reset_noise()  # Draw a new set of noisy weights
-
+            
             observation_strings_w_history = agent.naozi.get()
+            print("Obs strings w history: ", observation_strings_w_history)
+            exit(0)
             input_observation, input_observation_char, _ =  agent.get_agent_inputs(observation_strings_w_history)
             commands, replay_info = agent.act(obs, infos, input_observation, input_observation_char, input_quest, input_quest_char, possible_words, random=act_randomly)
             for i in range(batch_size):
@@ -200,6 +205,7 @@ def train(data_path):
 
             if episode_no >= agent.learn_start_from_this_episode and step_in_total % agent.update_per_k_game_steps == 0:
                 interaction_loss = agent.update_interaction()
+                print("Interaction Loss: ", interaction_loss)
                 if interaction_loss is not None:
                     running_avg_correct_state_loss.push(interaction_loss)
                 qa_loss = agent.update_qa()
@@ -337,47 +343,47 @@ def train(data_path):
                 agent.save_model_to_path(output_dir + "/" + agent.experiment_tag + "_model.pt")
 
         # plot using visdom
-        viz_avg_correct_state_acc.append(running_avg_sufficient_info_reward.get_avg())
-        viz_avg_qa_acc.append(running_avg_qa_reward.get_avg())
-        viz_eval_sufficient_info_reward.append(eval_sufficient_info_reward)
-        viz_eval_qa_reward.append(eval_qa_reward)
-        viz_x = np.arange(len(viz_avg_correct_state_acc)).tolist()
+        #viz_avg_correct_state_acc.append(running_avg_sufficient_info_reward.get_avg())
+        #viz_avg_qa_acc.append(running_avg_qa_reward.get_avg())
+        #viz_eval_sufficient_info_reward.append(eval_sufficient_info_reward)
+        #viz_eval_qa_reward.append(eval_qa_reward)
+        #viz_x = np.arange(len(#viz_avg_correct_state_acc)).tolist()
 
-        if plt_win is None:
-            plt_win = viz.line(X=viz_x, Y=viz_avg_correct_state_acc,
-                                opts=dict(title=agent.experiment_tag + "_train"),
-                                name="correct state")
-            viz.line(X=viz_x, Y=viz_avg_qa_acc,
-                        opts=dict(title=agent.experiment_tag + "_train"),
-                        win=plt_win, update='append', name="qa")
-        else:
-            viz.line(X=[len(viz_avg_correct_state_acc) - 1], Y=[viz_avg_correct_state_acc[-1]],
-                        opts=dict(title=agent.experiment_tag + "_train"),
-                        win=plt_win,
-                        update='append', name="correct state")
-            viz.line(X=[len(viz_avg_qa_acc) - 1], Y=[viz_avg_qa_acc[-1]],
-                        opts=dict(title=agent.experiment_tag + "_train"),
-                        win=plt_win,
-                        update='append', name="qa")
+        #if plt_win is None:
+        #    plt_win = #viz.line(X=#viz_x, Y=#viz_avg_correct_state_acc,
+        #                        opts=dict(title=agent.experiment_tag + "_train"),
+        #                        name="correct state")
+        #    #viz.line(X=#viz_x, Y=#viz_avg_qa_acc,
+        #                opts=dict(title=agent.experiment_tag + "_train"),
+        #                win=plt_win, update='append', name="qa")
+        #else:
+        #    #viz.line(X=[len(#viz_avg_correct_state_acc) - 1], Y=[#viz_avg_correct_state_acc[-1]],
+        #                opts=dict(title=agent.experiment_tag + "_train"),
+        #                win=plt_win,
+        #                update='append', name="correct state")
+        #    #viz.line(X=[len(#viz_avg_qa_acc) - 1], Y=[#viz_avg_qa_acc[-1]],
+        #                opts=dict(title=agent.experiment_tag + "_train"),
+        #                win=plt_win,
+        #                update='append', name="qa")
 
-        if eval_plt_win is None:
-            eval_plt_win = viz.line(X=viz_x, Y=viz_eval_sufficient_info_reward,
-                                    opts=dict(title=agent.experiment_tag + "_eval"),
-                                    name="correct state")
-            viz.line(X=viz_x, Y=viz_eval_qa_reward,
-                        opts=dict(title=agent.experiment_tag + "_eval"),
-                        win=eval_plt_win, update='append', name="qa")
-        else:
-            viz.line(X=[len(viz_eval_sufficient_info_reward) - 1], Y=[viz_eval_sufficient_info_reward[-1]],
-                        opts=dict(title=agent.experiment_tag + "_eval"),
-                        win=eval_plt_win,
-                        update='append', name="correct state")
-            viz.line(X=[len(viz_eval_qa_reward) - 1], Y=[viz_eval_qa_reward[-1]],
-                        opts=dict(title=agent.experiment_tag + "_eval"),
-                        win=eval_plt_win,
-                        update='append', name="qa")
+        #if eval_plt_win is None:
+        #    eval_plt_win = #viz.line(X=#viz_x, Y=#viz_eval_sufficient_info_reward,
+        #                            opts=dict(title=agent.experiment_tag + "_eval"),
+        #                            name="correct state")
+        #    #viz.line(X=#viz_x, Y=#viz_eval_qa_reward,
+        #                opts=dict(title=agent.experiment_tag + "_eval"),
+        #                win=eval_plt_win, update='append', name="qa")
+        #else:
+        #    #viz.line(X=[len(#viz_eval_sufficient_info_reward) - 1], Y=[#viz_eval_sufficient_info_reward[-1]],
+        #                opts=dict(title=agent.experiment_tag + "_eval"),
+        #                win=eval_plt_win,
+        #                update='append', name="correct state")
+        #    #viz.line(X=[len(#viz_eval_qa_reward) - 1], Y=[#viz_eval_qa_reward[-1]],
+        #                opts=dict(title=agent.experiment_tag + "_eval"),
+        #                win=eval_plt_win,
+        #                update='append', name="qa")
 
-        # write accucacies down into file
+        ## write accucacies down into file
         _s = json.dumps({"time spent": str(time_2 - time_1).rsplit(".")[0],
                          "sufficient info": running_avg_sufficient_info_reward.get_avg(),
                          "qa": running_avg_qa_reward.get_avg(),

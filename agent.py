@@ -247,11 +247,15 @@ class Agent:
         """
         batch_size = len(obs)
         feedback_strings = [preproc(item, tokenizer=self.nlp) for item in obs]
+        print(feedback_strings)
         description_strings = [preproc(item, tokenizer=self.nlp) for item in infos["description"]]
+        print(description_strings) 
         observation_strings = [d + " <|> " + fb if fb != d else d + " <|> hello" for fb, d in zip(feedback_strings, description_strings)]
-
+        print(observation_strings)
         inventory_strings = [preproc(item, tokenizer=self.nlp) for item in infos["inventory"]]
         local_word_list = [obs.split() + inv.split() for obs, inv in zip(observation_strings, inventory_strings)]
+        print(inventory_strings)
+        print(local_word_list)
 
         directions = ["east", "west", "north", "south"]
         if self.question_type in ["location", "existence"]:
